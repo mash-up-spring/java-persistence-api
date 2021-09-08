@@ -134,4 +134,81 @@ https://johngrib.github.io/wiki/law-of-demeter/
 - 연관관계의 주인은 외래키의 위치와 관련해서 정해야지 비즈니스 중요도로 접근하면 안된다. 
 - 양방향 매핑시에는 무한루프에 빠지지 않게 조심해야한다. 
 
+## 예제 개선해보기
+```kotlin
+class Team (
+    private val members: MutableList<Member>
+) {
+    internal fun add(member: Member) {
+        if (!members.contains(member)) {
+            members.add(member)
+        }
+    }
+    internal fun remove(member: Member) {
+        members.remove(member)
+    }
+}
 
+class Member(
+    var team: Team?
+) {
+    internal fun hasTeam(): Boolean {
+        return team != null
+    }
+    internal fun isIn(team: Team): Boolean {
+        return this.team?.let { it == team } ?: false
+    }
+    internal fun isInOtherTeam(team: Team): Boolean {
+        return hasTeam() && !isIn(team)
+    }
+    internal fun join(team: Team) {
+        this.team = team
+    }
+    internal fun withdraw() {
+        this.team = null
+    }
+}
+
+class JoinService {
+    fun join(
+        member: Member,
+        team: Team
+    ) {
+        if (member.hasTeam()) {
+            throw IllegalStateException()
+        }
+        if (member.isIn(team)) {
+            throw IllegalStateException()
+        }
+        member.join(team)
+        team.add(member)
+    }
+}
+
+class ChangeService(
+    private val joinService: JoinService,  
+    private val withdrawalService: WithdrawalService
+) {
+    fun change(
+        member: Member,
+        team: Team
+    ) {
+        if (member.isInOtherTeam(team)) {
+            withdrawalService.withdraw(member)
+        }
+        joinService.join(member, team)
+    }
+}
+
+class WithdrawalService {
+    fun withdraw(
+        member: Member
+    ) {
+        if (!member.hasTeam()) {
+            throw IllegalStateException()
+        }
+        member.team?.remove(member)
+        member.withdraw()
+    }
+}
+```
